@@ -7,8 +7,8 @@ import torchvision.datasets as datasets
 from torch.optim import Adam
 from torchvision import transforms
 
-from homework.dcgan import DCGenerator, DCDiscriminator
-from homework.dcgan import DCGANTrainer
+from dcgan.dcgan import DCGenerator, DCDiscriminator
+from dcgan.trainer import DCGANTrainer
 
 
 def get_config():
@@ -49,9 +49,9 @@ def main():
     dataset = datasets.CIFAR10(root=config.data_root, download=True,
                                transform=transform)
     dataloader = torch.utils.data.DataLoader(dataset, batch_size=config.batch_size, shuffle=True,
-                                             num_workers=4, pin_memory=True)
+                                             num_workers=0, pin_memory=True)
 
-    discriminator, generator = DCDiscriminator(config.image_size), DCGenerator(config.image_size)
+    discriminator, generator = DCDiscriminator(), DCGenerator()
 
     trainer = DCGANTrainer(generator=generator, discriminator=discriminator,
                            optimizer_d=Adam(discriminator.parameters(), lr=0.0002, betas=(0.5, 0.999)),

@@ -21,7 +21,7 @@ def giveName(iter):  # 7 digit name.
     return ans.zfill(7)
 
 
-def sampleFake(netG, nz, sampleSize, batchSize, saveFolder):
+def sampleFake(netG, nz, sampleSize, batchSize, saveFolder, device='cpu'):
     saveFolder = os.path.join(saveFolder, '0')
 
     try:
@@ -29,7 +29,7 @@ def sampleFake(netG, nz, sampleSize, batchSize, saveFolder):
     except OSError:
         pass
 
-    noise = torch.FloatTensor(batchSize, nz, 1, 1).cuda()
+    noise = torch.FloatTensor(batchSize, nz, 1, 1).to(device)
     iter = 0
     for i in range(0, 1 + sampleSize // batchSize):
         noise.data.normal_(0, 1)
@@ -46,7 +46,7 @@ def sampleFake(netG, nz, sampleSize, batchSize, saveFolder):
 def sampleTrue(dataset, imageSize, dataroot, sampleSize, batchSize, saveFolder):
     saveFolder = os.path.join(saveFolder, '0')
 
-    workers = 4
+    workers = 0
     if dataset in ['imagenet', 'folder', 'lfw']:
         # folder dataset
         dataset = dset.ImageFolder(root=dataroot,
@@ -109,7 +109,7 @@ def sampleTrue(dataset, imageSize, dataroot, sampleSize, batchSize, saveFolder):
 
 
 class ConvNetFeatureSaver(object):
-    def __init__(self, model='resnet34', workers=4, batchSize=64):
+    def __init__(self, model='resnet34', workers=0, batchSize=64, device='cpu'):
         '''
         model: inception_v3, vgg13, vgg16, vgg19, resnet18, resnet34,
                resnet50, resnet101, or resnet152
@@ -118,7 +118,7 @@ class ConvNetFeatureSaver(object):
         self.batch_size = batchSize
         self.workers = workers
         if self.model.find('vgg') >= 0:
-            self.vgg = getattr(models, model)(pretrained=True).cuda().eval()
+            self.vgg = getattr(models, model)(pretrained=True).to(device).eval()
             self.trans = transforms.Compose([
                 transforms.Resize(224),
                 transforms.ToTensor(),
@@ -127,12 +127,12 @@ class ConvNetFeatureSaver(object):
             ])
         elif self.model.find('resnet') >= 0:
             resnet = getattr(models, model)(pretrained=True)
-            resnet.cuda().eval()
+            resnet.to(device).eval()
             resnet_feature = nn.Sequential(resnet.conv1, resnet.bn1,
                                            resnet.relu,
                                            resnet.maxpool, resnet.layer1,
                                            resnet.layer2, resnet.layer3,
-                                           resnet.layer4).cuda().eval()
+                                           resnet.layer4).to(device).eval()
             self.resnet = resnet
             self.resnet_feature = resnet_feature
             self.trans = transforms.Compose([
@@ -143,7 +143,7 @@ class ConvNetFeatureSaver(object):
             ])
         elif self.model == 'inception' or self.model == 'inception_v3':
             inception = models.inception_v3(
-                pretrained=True, transform_input=False).cuda().eval()
+                pretrained=True, transform_input=False).to(device).eval()
             inception_feature = nn.Sequential(inception.Conv2d_1a_3x3,
                                               inception.Conv2d_2a_3x3,
                                               inception.Conv2d_2b_3x3,
@@ -161,7 +161,7 @@ class ConvNetFeatureSaver(object):
                                               inception.Mixed_7a,
                                               inception.Mixed_7b,
                                               inception.Mixed_7c,
-                                              ).cuda().eval()
+                                              ).to(device).eval()
             self.inception = inception
             self.inception_feature = inception_feature
             self.trans = transforms.Compose([
@@ -172,7 +172,7 @@ class ConvNetFeatureSaver(object):
         else:
             raise NotImplementedError
 
-    def save(self, imgFolder, save2disk=False):
+    def save(self, imgFolder, save2disk=False, device='cpu'):
         dataset = dset.ImageFolder(root=imgFolder, transform=self.trans)
         dataloader = torch.utils.data.DataLoader(
             dataset, batch_size=self.batch_size, num_workers=self.workers)
@@ -180,7 +180,7 @@ class ConvNetFeatureSaver(object):
         feature_pixl, feature_conv, feature_smax, feature_logit = [], [], [], []
         for img, _ in dataloader:
             with torch.no_grad():
-                input = img.cuda()
+                input = img.to(device)
                 if self.model == 'vgg' or self.model == 'vgg16':
                     fconv = self.vgg.features(input).view(input.size(0), -1)
                     flogit = self.vgg.classifier(fconv)
@@ -218,12 +218,12 @@ class ConvNetFeatureSaver(object):
         return feature_pixl, feature_conv, feature_logit, feature_smax
 
 
-def distance(X, Y, sqrt):
+def distance(X, Y, sqrt, device='cpu'):
     nX = X.size(0)
     nY = Y.size(0)
-    X = X.view(nX, -1).cuda()
+    X = X.view(nX, -1).to(device)
     X2 = (X * X).sum(1).resize_(nX, 1)
-    Y = Y.view(nY, -1).cuda()
+    Y = Y.view(nY, -1).to(device)
     Y2 = (Y * Y).sum(1).resize_(nY, 1)
 
     M = torch.zeros(nX, nY)

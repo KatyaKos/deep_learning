@@ -9,13 +9,13 @@ import torch.utils.data
 import torchvision.utils as vutils
 from tensorboardX import SummaryWriter
 
-from homework import metric
+import metric
 
 
 class DCGANTrainer:
 
     def __init__(self, discriminator, generator, optimizer_d, optimizer_g, latent_size=100,
-                 device='cuda', metrics_dir='metrics', save_root='ckpt', log_dir=None):
+                 device='cpu', metrics_dir='metrics', save_root='ckpt', log_dir=None):
         self.net_g = generator
         self.net_d = discriminator
         self.optimizer_d = optimizer_d
@@ -47,12 +47,12 @@ class DCGANTrainer:
         torch.save(self.net_g.state_dict(), os.path.join(self.save_root, f'generator_epoch_{epoch}.pt'))
         torch.save(self.net_d.state_dict(), os.path.join(self.save_root, f'discriminator_epoch_{epoch}.pt'))
 
-    def train(self, dataloader, n_epoch=25, n_show_samples=8, show_img_every=10, log_metrics_every=100,
+    def train(self, dataloader, n_epoch=25, f_epoch=0, n_show_samples=8, show_img_every=10, log_metrics_every=100,
               metrics_dataset='cifar10', metrics_to_log=('inception-score', 'mode-score', 'fid')):
         criterion = nn.BCELoss()
 
         global_step = 0
-        for epoch in range(n_epoch):
+        for epoch in range(f_epoch, f_epoch + n_epoch):
             for i, data in enumerate(dataloader):
 
                 self.net_d.zero_grad()
@@ -89,7 +89,7 @@ class DCGANTrainer:
                 err_g.backward()
                 self.optimizer_g.step()
 
-                logging.info(f'epoch: [{epoch}/{n_epoch}] iter: [{i}/{len(dataloader)}] loss_D: {err_d:.4f} '
+                logging.info(f'epoch: [{epoch}/{f_epoch + n_epoch}] iter: [{i}/{len(dataloader)}] loss_D: {err_d:.4f} '
                              f'loss_G: {err_g:.4f}')
                 self.writer.add_scalar('data/loss_discriminator', err_d, global_step)
                 self.writer.add_scalar('data/loss_generator', err_g, global_step)

@@ -23,8 +23,12 @@ class Trainer:
         epoch_loss = 0
 
         for batch_idx, (data, _) in enumerate(self.train_loader):
-            # TODO your code here
-            train_loss = None
+            self.model.zero_grad()
+            data = data.to(self.device)
+            result, mu, logvar = self.model(data)
+            train_loss = self.loss_function(result, data, mu, logvar)
+            train_loss.backward()
+
             epoch_loss += train_loss
             norm_train_loss = train_loss / len(data)
 
@@ -50,14 +54,16 @@ class Trainer:
                                scalar_value=epoch_loss,
                                global_step=epoch)
 
-    def test(self, epoch, batch_size, log_interval):
+    def test(self, epoch, log_interval):
         self.model.eval()
         test_epoch_loss = 0
 
         for batch_idx, (data, _) in enumerate(self.test_loader):
-            # TODO your code here
+            batch_size = self.test_loader.batch_size
+            data = data.to(self.device)
+            result, mu, logvar = self.model(data)
+            test_loss = self.loss_function(result, data, mu, logvar)
 
-            test_loss = None
             test_epoch_loss += test_loss
 
             if batch_idx % log_interval == 0:
@@ -69,20 +75,25 @@ class Trainer:
                 logging.info(msg)
 
                 batches_per_epoch_test = len(self.test_loader.dataset) // batch_size
+                global_step = batches_per_epoch_test * (epoch - 1) + batch_idx
                 self.writer.add_scalar(tag='data/test_loss',
                                        scalar_value=test_loss / len(data),
-                                       global_step=batches_per_epoch_test * (epoch - 1) + batch_idx)
+                                       global_step=global_step)
+                if batch_idx % 10 == 0:
+                    self.plot_generated(data, result, global_step)
 
         test_epoch_loss /= len(self.test_loader.dataset)
         logging.info('====> Test set loss: {:.4f}'.format(test_epoch_loss))
         self.writer.add_scalar(tag='data/test_epoch_loss',
                                scalar_value=test_epoch_loss,
                                global_step=epoch)
-        self.plot_generated(epoch, batch_size)
 
-    def plot_generated(self, epoch, batch_size):
-        # TODO your code here
-        pass
+    def plot_generated(self, data, result, global_step):
+        image = vutils.make_grid(data[:5], normalize=True, scale_each=True)
+        self.writer.add_image('images/data', image, global_step)
+
+        image = vutils.make_grid(result[:5], normalize=True, scale_each=True)
+        self.writer.add_image('images/result', image, global_step)
 
     def save(self, checkpoint_path):
         dir_name = os.path.dirname(checkpoint_path)
